@@ -1,0 +1,52 @@
+name: Daily Upstream Watchdog
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Executes daily at 06:00 UTC
+  workflow_dispatch:      # Allows manual trigger
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  track-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Sentinel Agent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          MODEL_DEPLOYMENT_NAME: ${{ secrets.MODEL_DEPLOYMENT_NAME }}
+        run: |
+          python agent_watchdog.py
+
+      - name: Commit and Push Daily Digest
+        run: |
+          git config --global user.name "Gunslinger Sentinel"
+          git config --global user.email "actions@github.com"
+          git add briefings/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(digest): update upstream repository report [$(date +'%Y-%m-%d')]"
+            git push origin HEAD:${{ github.ref_name }}
+          else
+            echo "No new modifications or changes detected."
+          fi
