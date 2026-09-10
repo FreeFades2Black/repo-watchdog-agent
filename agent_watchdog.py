@@ -210,11 +210,11 @@ def parse_and_export_telemetry(
         if ("high impact" in cleaned.lower() or "breaking changes" in cleaned.lower()) and cleaned.startswith("##"):
             in_breaking_section = True
             continue
-        elif (cleaned.startswith("##") or cleaned.startswith("---")) and in_breaking_section:
+        elif cleaned.startswith(("##", "---")) and in_breaking_section:
             # End of breaking changes block
             in_breaking_section = False
 
-        if in_breaking_section and (cleaned.startswith("- ") or cleaned.startswith("* ")):
+        if in_breaking_section and cleaned.startswith(("- ", "* ")):
             item_text = cleaned[2:].strip()
             lower_text = item_text.lower()
             if (

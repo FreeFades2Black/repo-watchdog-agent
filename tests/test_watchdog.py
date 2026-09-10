@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 from agent_watchdog import (
     build_deterministic_digest,
-    export_dashboard_telemetry,
     inspect_repository_trail,
     main,
     parse_and_export_telemetry,
