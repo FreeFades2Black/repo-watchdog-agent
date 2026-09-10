@@ -4,6 +4,7 @@
 [![Sentinel Test & Quality Gate](https://github.com/FreeFades2Black/repo-watchdog-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/FreeFades2Black/repo-watchdog-agent/actions)
 [![Daily Upstream Watchdog](https://github.com/FreeFades2Black/repo-watchdog-agent/actions/workflows/daily-watchdog.yml/badge.svg)](https://github.com/FreeFades2Black/repo-watchdog-agent/actions)
 [![Live Dashboard](https://img.shields.io/badge/Live%20Dashboard-freefades2black.github.io-2ea44f?style=flat-square&logo=githubpages&logoColor=white)](https://freefades2black.github.io/repo-watchdog-agent/)
+[![Azure Portal Dashboard](https://img.shields.io/badge/Azure%20Portal-Dashboard-0089D6?style=flat-square&logo=microsoftazure&logoColor=white)](AZURE_PORTAL_DASHBOARD.md)
 [![Ansible Automation](https://img.shields.io/badge/Orchestration-Ansible-EE0000?style=flat-square&logo=ansible&logoColor=white)](ansible/)
 [![Python Version](https://img.shields.io/badge/Python-3.11%20%7C%203.10-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Microsoft Agent Framework](https://img.shields.io/badge/Agent%20Engine-Microsoft%20Agent%20Framework-0078D4?style=flat-square&logo=microsoftazure&logoColor=white)](https://aka.ms/agent-framework)
@@ -267,6 +268,10 @@ repo-watchdog-agent/
 │   ├── deploy-sentinel-node.yml       # Playbook: Autonomous sentinel node provisioning
 │   ├── README.md                      # Dedicated Ansible operations guide
 │   └── roles/watchdog_sentinel/       # Systemd timer & virtualenv deployment role
+├── azure/                             # Native Azure Portal Dashboard & ARM deployment
+│   ├── portal-dashboard.json          # 1-Click direct importable JSON for portal.azure.com
+│   ├── azuredeploy.json               # ARM template for Microsoft.Portal/dashboards
+│   └── deploy-dashboard.ps1           # Automated PowerShell deployment script
 ├── briefings/
 │   └── digest-YYYY-MM-DD.md          # Permanent historical intelligence dossiers
 ├── docs/                              # GitHub Pages static dashboard application
@@ -281,7 +286,8 @@ repo-watchdog-agent/
 ├── requirements.txt                   # Production dependencies
 ├── pytest.ini                         # Pytest configuration
 ├── GITHUB_PAGES_DASHBOARD.md          # Architecture guide for the static web dashboard
-└── DASHBOARD_BREAKING_CHANGES.md      # Specification for breaking change detection
+├── DASHBOARD_BREAKING_CHANGES.md      # Specification for breaking change detection
+└── AZURE_PORTAL_DASHBOARD.md          # Guide for Azure Portal Home executive dashboard
 ```
 
 ---
