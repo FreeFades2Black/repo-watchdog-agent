@@ -1,0 +1,119 @@
+---
+# Tasks for autonomous watchdog_sentinel node deployment
+
+- name: Install required OS packages (Arch Linux)
+  community.general.pacman:
+    name:
+      - git
+      - python
+      - python-pip
+    state: present
+  when: ansible_os_family == "Archlinux"
+
+- name: Install required OS packages (Debian / Ubuntu)
+  ansible.builtin.apt:
+    name:
+      - git
+      - python3
+      - python3-pip
+      - python3-venv
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Install required OS packages (RedHat / Fedora)
+  ansible.builtin.dnf:
+    name:
+      - git
+      - python3
+      - python3-pip
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Create watchdog configuration directory
+  ansible.builtin.file:
+    path: "{{ watchdog_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Deploy watchdog environment configuration
+  ansible.builtin.template:
+    src: watchdog.env.j2
+    dest: "{{ watchdog_env_file }}"
+    owner: root
+    group: "{{ watchdog_group }}"
+    mode: "0640"
+
+- name: Ensure repository directory exists
+  ansible.builtin.file:
+    path: "{{ watchdog_repo_dir }}"
+    state: directory
+    owner: "{{ watchdog_user }}"
+    group: "{{ watchdog_group }}"
+    mode: "0755"
+
+- name: Ensure target repository is present and up to date
+  ansible.builtin.git:
+    repo: "{{ watchdog_repo_url }}"
+    dest: "{{ watchdog_repo_dir }}"
+    version: "{{ watchdog_repo_branch }}"
+    update: false
+  become: true
+  become_user: "{{ watchdog_user }}"
+  ignore_errors: true
+
+- name: Ensure output directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ watchdog_user }}"
+    group: "{{ watchdog_group }}"
+    mode: "0755"
+  loop:
+    - "{{ watchdog_repo_dir }}/briefings"
+    - "{{ watchdog_repo_dir }}/docs/data"
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: "python3 -m venv {{ watchdog_venv_dir }}"
+    creates: "{{ watchdog_python_bin }}"
+  become: true
+  become_user: "{{ watchdog_user }}"
+
+- name: Install Python dependencies from requirements.txt
+  ansible.builtin.pip:
+    requirements: "{{ watchdog_repo_dir }}/requirements.txt"
+    virtualenv: "{{ watchdog_venv_dir }}"
+  become: true
+  become_user: "{{ watchdog_user }}"
+
+- name: Deploy systemd service unit
+  ansible.builtin.template:
+    src: repo-watchdog.service.j2
+    dest: /etc/systemd/system/repo-watchdog.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd daemon
+
+- name: Deploy systemd timer unit
+  ansible.builtin.template:
+    src: repo-watchdog.timer.j2
+    dest: /etc/systemd/system/repo-watchdog.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd daemon
+    - Restart watchdog timer
+
+- name: Flush pending handlers to ensure systemd is reloaded
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start repo-watchdog systemd timer
+  ansible.builtin.systemd:
+    name: repo-watchdog.timer
+    enabled: true
+    state: started

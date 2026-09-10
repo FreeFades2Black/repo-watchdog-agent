@@ -1,0 +1,19 @@
+[Unit]
+Description=Autonomous Repo Watchdog Sentinel Agent
+Documentation=https://github.com/FreeFades2Black/repo-watchdog-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ watchdog_user }}
+Group={{ watchdog_group }}
+WorkingDirectory={{ watchdog_repo_dir }}
+EnvironmentFile=-{{ watchdog_env_file }}
+ExecStart={{ watchdog_python_bin }} {{ watchdog_repo_dir }}/agent_watchdog.py --output-dir {{ watchdog_repo_dir }}/briefings --docs-dir {{ watchdog_repo_dir }}/docs {% if watchdog_dry_run %}--dry-run{% endif %} --repos {% for repo in watchdog_target_repos %}{{ repo }} {% endfor %}
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,37 @@
+---
+# Default configuration variables for watchdog_sentinel role
+
+# Operating System User & Directory Permissions
+watchdog_user: "{{ ansible_user | default('free') }}"
+watchdog_group: "{{ ansible_user | default('free') }}"
+
+# Repository & Path Locations
+watchdog_repo_dir: "/home/{{ watchdog_user }}/projects/repo-watchdog-agent"
+watchdog_repo_url: "https://github.com/FreeFades2Black/repo-watchdog-agent.git"
+watchdog_repo_branch: "main"
+
+# Python Virtual Environment
+watchdog_venv_dir: "{{ watchdog_repo_dir }}/.venv"
+watchdog_python_bin: "{{ watchdog_venv_dir }}/bin/python"
+watchdog_pip_bin: "{{ watchdog_venv_dir }}/bin/pip"
+
+# System Configuration & Secrets
+watchdog_config_dir: "/etc/repo-watchdog"
+watchdog_env_file: "{{ watchdog_config_dir }}/watchdog.env"
+
+# Scheduled Systemd Execution Frequency
+# Systemd Calendar format: e.g. "*-*-* 06:00:00 UTC" for 06:00 UTC daily
+watchdog_schedule_on_calendar: "*-*-* 06:00:00 UTC"
+
+# Upstream Targets to Monitor
+watchdog_target_repos:
+  - "microsoft/agent-framework"
+  - "microsoft/semantic-kernel"
+  - "microsoft/autogen"
+
+# Mode Flags & Secrets (Inject via Ansible Vault or CLI --extra-vars)
+watchdog_dry_run: false
+azure_openai_api_key: ""
+azure_openai_endpoint: ""
+model_deployment_name: "gpt-4o"
+github_token: ""

@@ -1,0 +1,8 @@
+---
+- name: Provision and Orchestrate Autonomous Sentinel Node
+  hosts: sentinel_nodes
+  become: true
+  gather_facts: true
+
+  roles:
+    - watchdog_sentinel

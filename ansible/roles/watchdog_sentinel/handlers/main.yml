@@ -1,0 +1,9 @@
+---
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart watchdog timer
+  ansible.builtin.systemd:
+    name: repo-watchdog.timer
+    state: restarted

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Repo Watchdog Sentinel Agent Daily
+Documentation=https://github.com/FreeFades2Black/repo-watchdog-agent
+
+[Timer]
+OnCalendar={{ watchdog_schedule_on_calendar }}
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target
