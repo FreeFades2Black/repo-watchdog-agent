@@ -3,12 +3,11 @@
 # Ka is a wheel; the watchman stands upon the beam, tracking all movement.
 # ==============================================================================
 
-import os
-import sys
 import argparse
 import datetime
+import os
+
 import requests
-from typing import List, Dict, Any, Optional
 
 # ------------------------------------------------------------------------------
 # Framework Import with Resilient Offline Fallback
@@ -29,7 +28,7 @@ except ImportError:
 
     class Agent:
         """Lightweight fallback agent for offline testing and deterministic CI runs."""
-        def __init__(self, model: str = "gpt-4o", system_prompt: str = "", tools: list = None):
+        def __init__(self, model: str = "gpt-4o", system_prompt: str = "", tools: list | None = None):
             self.model = model
             self.system_prompt = system_prompt
             self.tools = tools or []
@@ -123,7 +122,7 @@ def summon_the_watchman():
     return sentinel_agent
 
 
-def build_deterministic_digest(reports: Dict[str, str], target_repos: List[str]) -> str:
+def build_deterministic_digest(reports: dict[str, str], target_repos: list[str]) -> str:
     """
     Generates a structured, scannable intelligence briefing from gathered trail logs.
     Used for offline testing, CI verification, and dry-run execution.
@@ -212,7 +211,7 @@ def main():
             try:
                 reports[repo] = inspect_repository_trail(repo)
                 print(f"  [>] Ingested telemetry for: {repo}")
-            except Exception as e:
+            except (requests.RequestException, KeyError, ValueError, RuntimeError) as e:
                 reports[repo] = f"=== Trail Report for: {repo} ===\nError scanning trail: {e}"
         digest_content = build_deterministic_digest(reports, target_repos)
 

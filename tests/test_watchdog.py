@@ -3,16 +3,13 @@ Unit Test Suite for Repo Watchdog Agent
 Validates GitHub REST API tool, agent synthesis, and markdown digest generation.
 """
 
-import os
-import json
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from agent_watchdog import (
-    inspect_repository_trail,
-    summon_the_watchman,
     build_deterministic_digest,
+    inspect_repository_trail,
     main,
-    TARGET_REPOS
+    summon_the_watchman,
 )
 
 
