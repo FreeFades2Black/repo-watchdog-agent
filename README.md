@@ -4,6 +4,7 @@
 [![Sentinel Test & Quality Gate](https://github.com/FreeFades2Black/repo-watchdog-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/FreeFades2Black/repo-watchdog-agent/actions)
 [![Daily Upstream Watchdog](https://github.com/FreeFades2Black/repo-watchdog-agent/actions/workflows/daily-watchdog.yml/badge.svg)](https://github.com/FreeFades2Black/repo-watchdog-agent/actions)
 [![Live Dashboard](https://img.shields.io/badge/Live%20Dashboard-freefades2black.github.io-2ea44f?style=flat-square&logo=githubpages&logoColor=white)](https://freefades2black.github.io/repo-watchdog-agent/)
+[![Ansible Automation](https://img.shields.io/badge/Orchestration-Ansible-EE0000?style=flat-square&logo=ansible&logoColor=white)](ansible/)
 [![Python Version](https://img.shields.io/badge/Python-3.11%20%7C%203.10-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Microsoft Agent Framework](https://img.shields.io/badge/Agent%20Engine-Microsoft%20Agent%20Framework-0078D4?style=flat-square&logo=microsoftazure&logoColor=white)](https://aka.ms/agent-framework)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
@@ -260,6 +261,12 @@ repo-watchdog-agent/
 │       ├── ci.yml                     # Multi-OS test matrix & Ruff linting gate
 │       ├── daily-watchdog.yml         # Daily cron briefing generator (06:00 UTC)
 │       └── watchdog-dashboard.yml     # Telemetry export & GitHub Pages CD
+├── ansible/                           # Ansible automation & self-hosted node orchestration
+│   ├── ansible.cfg                    # Ansible settings
+│   ├── inventory.ini                  # Target hosts (localhost, omarchy, etc.)
+│   ├── deploy-sentinel-node.yml       # Playbook: Autonomous sentinel node provisioning
+│   ├── README.md                      # Dedicated Ansible operations guide
+│   └── roles/watchdog_sentinel/       # Systemd timer & virtualenv deployment role
 ├── briefings/
 │   └── digest-YYYY-MM-DD.md          # Permanent historical intelligence dossiers
 ├── docs/                              # GitHub Pages static dashboard application
@@ -379,7 +386,45 @@ python agent_watchdog.py --repos astral-sh/ruff pydantic/pydantic
 
 ---
 
-## 🧪 8. Local Development, Testing & Verification
+## 🛠️ 8. Ansible Automation: Self-Hosted Sentinel Nodes
+
+For enterprise environments, edge deployments, or self-hosted Linux infrastructure (such as dedicated VMs or bare-metal servers like Arch Linux, Ubuntu, or RHEL), the repository includes a complete Ansible orchestration suite under [`ansible/`](ansible/):
+
+### Key Capabilities
+* **Automated OS Provisioning:** Installs Git, Python 3, and pip, and provisions an isolated virtual environment (`.venv`).
+* **Environment Secret Management:** Generates a secure, protected `/etc/repo-watchdog/watchdog.env` configuration file (mode `0640`).
+* **Systemd Timer & Service Orchestration:** Deploys `repo-watchdog.service` and `repo-watchdog.timer`, enabling headless daily execution (at 06:00 UTC) without requiring GitHub Actions runners.
+* **Multi-Distribution Compatibility:** Works seamlessly across Arch Linux (`pacman`), Debian/Ubuntu (`apt`), and Fedora/RHEL (`dnf`).
+
+### Quickstart Ansible Deployment
+
+```bash
+# 1. Navigate to ansible directory
+cd ansible
+
+# 2. Deploy to local node
+ansible-playbook -i inventory.ini deploy-sentinel-node.yml --connection=local --limit localhost
+
+# 3. Deploy remotely to target host (e.g., omarchy)
+ansible-playbook -i inventory.ini deploy-sentinel-node.yml --limit omarchy
+```
+
+### Inspecting Autonomous Systemd Execution
+```bash
+# Verify active timer schedule
+systemctl status repo-watchdog.timer
+
+# Trigger immediate on-demand test execution
+sudo systemctl start repo-watchdog.service
+
+# View execution logs in journald
+journalctl -u repo-watchdog.service -n 50 -f
+```
+See the full guide in [ansible/README.md](ansible/README.md).
+
+---
+
+## 🧪 9. Local Development, Testing & Verification
 
 ### Running Locally
 ```bash
@@ -419,7 +464,7 @@ tests/test_watchdog.py::test_main_cli_execution PASSED                   [100%]
 
 ---
 
-## 🛡️ 9. Security Posture & Enterprise Governance
+## 🛡️ 10. Security Posture & Enterprise Governance
 
 * **Zero Hardcoded Credentials:** All GitHub API queries and Azure OpenAI transactions rely on ephemeral GitHub Actions environment tokens and secret manager rotation.
 * **Rate-Limit Resilience:** Authenticated queries with `GITHUB_TOKEN` grant up to 5,000 requests/hour per runner, insulating the agent from unauthenticated rate limit blocks.
