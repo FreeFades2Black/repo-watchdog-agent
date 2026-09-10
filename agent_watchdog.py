@@ -1,13 +1,13 @@
 # ==============================================================================
 # "The man in black fled across the desert, and the gunslinger followed."
-# Ka is a wheel; the watchman stands upon the beam, tracking all movement.
+# "The gunslinger does not aim with his hand; he aims with his eye."
+# We parse the trail signs to mark danger points in the ledger.
 # ==============================================================================
 
 import argparse
 import datetime
 import json
 import os
-from typing import Any
 
 import requests
 
@@ -182,13 +182,14 @@ def build_deterministic_digest(reports: dict[str, str], target_repos: list[str])
 # Dashboard Exporter Extension: Telemetry persistence for GitHub Pages
 # ------------------------------------------------------------------------------
 
-def export_dashboard_telemetry(
-    agent_summary: str,
-    repo_reports: list[dict[str, Any]],
+def parse_and_export_telemetry(
+    agent_raw_output: str,
+    repo_list: list[str],
     docs_dir: str | None = None
-):
+) -> dict:
     """
-    Persists structured run data for the static dashboard in docs/data.
+    Parses agent findings for breaking changes and saves structured telemetry
+    to docs/data/latest.json and updates docs/data/manifest.json.
     """
     timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     date_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
@@ -197,21 +198,59 @@ def export_dashboard_telemetry(
     data_dir = os.path.join(base_docs, "data")
     os.makedirs(data_dir, exist_ok=True)
 
-    # 1. Individual Run Payload
-    run_payload = {
+    # --------------------------------------------------------------------------
+    # Extraction: Parse breaking changes from output markers
+    # --------------------------------------------------------------------------
+    breaking_records = []
+    lines = agent_raw_output.splitlines()
+    in_breaking_section = False
+
+    for line in lines:
+        cleaned = line.strip()
+        if ("high impact" in cleaned.lower() or "breaking changes" in cleaned.lower()) and cleaned.startswith("##"):
+            in_breaking_section = True
+            continue
+        elif (cleaned.startswith("##") or cleaned.startswith("---")) and in_breaking_section:
+            # End of breaking changes block
+            in_breaking_section = False
+
+        if in_breaking_section and (cleaned.startswith("- ") or cleaned.startswith("* ")):
+            item_text = cleaned[2:].strip()
+            lower_text = item_text.lower()
+            if (
+                item_text
+                and not lower_text.startswith("none")
+                and not lower_text.startswith("no explicit")
+                and not lower_text.startswith("no breaking")
+                and not lower_text.startswith("zero")
+            ):
+                matched_repo = next((r for r in repo_list if r.lower() in item_text.lower()), "Upstream")
+                title_part = item_text.split(":")[0] if ":" in item_text else item_text[:80]
+                breaking_records.append({
+                    "repo": matched_repo,
+                    "title": title_part.strip(),
+                    "detail": item_text
+                })
+
+    has_breaking = len(breaking_records) > 0
+    breaking_count = len(breaking_records)
+
+    # 1. Write Latest Run Snapshot
+    payload = {
         "timestamp": timestamp,
         "date": date_str,
         "status": "Success",
-        "agent_summary": agent_summary,
-        "tracked_repos": repo_reports
+        "has_breaking_changes": has_breaking,
+        "breaking_count": breaking_count,
+        "breaking_changes": breaking_records,
+        "agent_summary": agent_raw_output,
+        "tracked_repos": repo_list
     }
 
-    # Write latest run snapshot
-    latest_file = os.path.join(data_dir, "latest.json")
-    with open(latest_file, "w", encoding="utf-8") as f:
-        json.dump(run_payload, f, indent=2)
+    with open(os.path.join(data_dir, "latest.json"), "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
 
-    # 2. Update Run Manifest (Keep last 30 runs)
+    # 2. Update Run Manifest (Historical Runs)
     manifest_file = os.path.join(data_dir, "manifest.json")
     manifest = []
     if os.path.exists(manifest_file):
@@ -221,21 +260,37 @@ def export_dashboard_telemetry(
         except (json.JSONDecodeError, OSError):
             manifest = []
 
-    # Insert latest record at the top
     manifest.insert(0, {
         "timestamp": timestamp,
         "date": date_str,
         "status": "Success",
-        "summary_snippet": agent_summary[:160] + "..." if len(agent_summary) > 160 else agent_summary
+        "has_breaking_changes": has_breaking,
+        "breaking_count": breaking_count,
+        "summary_snippet": agent_raw_output[:160] + "..." if len(agent_raw_output) > 160 else agent_raw_output
     })
 
-    # Prune history to last 30 entries
-    manifest = manifest[:30]
-
+    # Retain the last 30 runs
     with open(manifest_file, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2)
+        json.dump(manifest[:30], f, indent=2)
 
-    print(f"[+] Watchdog telemetry successfully exported to {data_dir}")
+    print(f"[+] Exported telemetry: {breaking_count} breaking changes identified.")
+    return payload
+
+
+def export_dashboard_telemetry(
+    agent_summary: str,
+    repo_reports: list[dict] | list[str],
+    docs_dir: str | None = None
+) -> dict:
+    """
+    Backward-compatible wrapper for parse_and_export_telemetry.
+    Accepts either repo names list or list of repo dict objects.
+    """
+    if repo_reports and isinstance(repo_reports[0], dict):
+        repo_names = [r.get("repo", "Unknown") for r in repo_reports]
+    else:
+        repo_names = list(repo_reports)
+    return parse_and_export_telemetry(agent_summary, repo_names, docs_dir=docs_dir)
 
 
 def main():
@@ -291,10 +346,9 @@ def main():
         f.write("\n")
     print(f"Digest filed successfully at {output_file}")
 
-    # 2. Export dashboard telemetry (docs/data)
-    repo_payloads = [{"repo": r, "report": reports.get(r, "")} for r in target_repos]
+    # 2. Export structured dashboard telemetry (docs/data)
     docs_dir = args.docs_dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
-    export_dashboard_telemetry(digest_content, repo_payloads, docs_dir=docs_dir)
+    parse_and_export_telemetry(digest_content, target_repos, docs_dir=docs_dir)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """
 Unit Test Suite for Repo Watchdog Agent
-Validates GitHub REST API tool, agent synthesis, markdown digest generation, and telemetry export.
+Validates GitHub REST API tool, agent synthesis, markdown digest generation, and breaking changes telemetry parsing.
 """
 
 import json
@@ -11,6 +11,7 @@ from agent_watchdog import (
     export_dashboard_telemetry,
     inspect_repository_trail,
     main,
+    parse_and_export_telemetry,
     summon_the_watchman,
 )
 
@@ -109,34 +110,70 @@ def test_build_deterministic_digest():
     assert "🟢 `HEALTHY`" in digest
 
 
-def test_export_dashboard_telemetry(tmp_path):
-    """Verify export_dashboard_telemetry creates latest.json and appends to manifest.json."""
+def test_parse_and_export_telemetry_breaking_detected(tmp_path):
+    """Verify parsing identifies breaking changes, sets boolean flags, and saves structured JSON."""
     docs_dir = tmp_path / "docs"
-    fake_reports = [{"repo": "microsoft/agent-framework", "report": "All clear"}]
+    repos = ["microsoft/agent-framework", "microsoft/semantic-kernel"]
 
-    # 1. First run
-    export_dashboard_telemetry("Initial sentinel run summary", fake_reports, docs_dir=str(docs_dir))
+    breaking_output = """
+# Daily Repository Intelligence Digest - 2026-09-10
 
-    latest_path = docs_dir / "data" / "latest.json"
-    manifest_path = docs_dir / "data" / "manifest.json"
+---
+## 🚨 1. High Impact / Breaking Changes
+- [microsoft/agent-framework] Renamed Agent.run() signature to async Agent.execute_async(): PR #412 removes sync run invocation.
+- [microsoft/semantic-kernel] Deprecated OpenAIChatCompletionService constructor options: Removed legacy credentials payload.
 
-    assert latest_path.exists()
-    assert manifest_path.exists()
+---
+## ✨ 2. New Features & Framework Changes
+### `microsoft/agent-framework`
+- PR #8164: .NET: fix: do not forward headers on redirect
+"""
 
-    latest_data = json.loads(latest_path.read_text(encoding="utf-8"))
-    assert latest_data["status"] == "Success"
-    assert latest_data["agent_summary"] == "Initial sentinel run summary"
-    assert len(latest_data["tracked_repos"]) == 1
+    payload = parse_and_export_telemetry(breaking_output, repos, docs_dir=str(docs_dir))
 
-    manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert len(manifest_data) == 1
-    assert manifest_data[0]["summary_snippet"] == "Initial sentinel run summary"
+    assert payload["has_breaking_changes"] is True
+    assert payload["breaking_count"] == 2
+    assert len(payload["breaking_changes"]) == 2
+    assert payload["breaking_changes"][0]["repo"] == "microsoft/agent-framework"
+    assert "Renamed Agent.run()" in payload["breaking_changes"][0]["title"]
+    assert payload["breaking_changes"][1]["repo"] == "microsoft/semantic-kernel"
 
-    # 2. Second run (appends to manifest and keeps history)
-    export_dashboard_telemetry("Second sentinel run summary", fake_reports, docs_dir=str(docs_dir))
-    manifest_data2 = json.loads(manifest_path.read_text(encoding="utf-8"))
-    assert len(manifest_data2) == 2
-    assert manifest_data2[0]["summary_snippet"] == "Second sentinel run summary"
+    latest_file = docs_dir / "data" / "latest.json"
+    manifest_file = docs_dir / "data" / "manifest.json"
+    assert latest_file.exists()
+    assert manifest_file.exists()
+
+    latest_json = json.loads(latest_file.read_text(encoding="utf-8"))
+    assert latest_json["has_breaking_changes"] is True
+    assert latest_json["breaking_count"] == 2
+
+    manifest_json = json.loads(manifest_file.read_text(encoding="utf-8"))
+    assert manifest_json[0]["has_breaking_changes"] is True
+    assert manifest_json[0]["breaking_count"] == 2
+
+
+def test_parse_and_export_telemetry_stable(tmp_path):
+    """Verify parsing handles zero breaking changes properly."""
+    docs_dir = tmp_path / "docs"
+    repos = ["microsoft/agent-framework"]
+
+    stable_output = """
+# Daily Repository Intelligence Digest - 2026-09-10
+
+---
+## 🚨 1. High Impact / Breaking Changes
+No explicit breaking contract mutations or deprecation tags flagged in the past 24-hour cycle. Upstream APIs remain stable.
+
+---
+## ✨ 2. New Features & Framework Changes
+- PR #8164: .NET: fix: do not forward headers on redirect
+"""
+
+    payload = parse_and_export_telemetry(stable_output, repos, docs_dir=str(docs_dir))
+
+    assert payload["has_breaking_changes"] is False
+    assert payload["breaking_count"] == 0
+    assert payload["breaking_changes"] == []
 
 
 def test_main_cli_execution(tmp_path, monkeypatch):
