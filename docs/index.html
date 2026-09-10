@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinel Agent | Live Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --accent: #58a6ff;
+      --green: #2ea043;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      padding: 2rem 1rem;
+      line-height: 1.5;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+    h1 { font-size: 1.5rem; font-weight: 600; color: #fff; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(46, 160, 67, 0.15);
+      color: var(--green);
+      padding: 0.3rem 0.6rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .badge::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 800px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.25rem;
+    }
+    .card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 1rem;
+    }
+    pre {
+      background: #090d12;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #e6edf3;
+      white-space: pre-wrap;
+      max-height: 480px;
+      overflow-y: auto;
+    }
+    .history-list { list-style: none; }
+    .history-item {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-time {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: #8b949e;
+    }
+    .history-snippet {
+      font-size: 0.85rem;
+      color: var(--text);
+      margin-top: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Sentinel Watchdog Dashboard</h1>
+        <p style="color: #8b949e; font-size: 0.85rem; margin-top: 0.25rem;">
+          Microsoft Agent Framework Upstream Monitoring Engine
+        </p>
+      </div>
+      <div id="status-badge" class="badge">Checking status...</div>
+    </header>
+
+    <div class="grid">
+      <!-- Main Column: Latest Run Report -->
+      <section class="card">
+        <div class="card-title">Latest Intelligence Summary</div>
+        <div id="run-metadata" style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); margin-bottom: 0.75rem;">
+          Loading execution data...
+        </div>
+        <pre id="summary-content">Loading agent assessment...</pre>
+      </section>
+
+      <!-- Sidebar: Historical Executions -->
+      <section class="card">
+        <div class="card-title">Run History (30 Days)</div>
+        <ul id="history-container" class="history-list">
+          <li class="history-item" style="color: #8b949e;">Fetching records...</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    async function loadDashboard() {
+      try {
+        // Fetch latest telemetry
+        const latestRes = await fetch('./data/latest.json?t=' + Date.now());
+        if (latestRes.ok) {
+          const latest = await latestRes.json();
+          document.getElementById('status-badge').textContent = latest.status || 'Active';
+          document.getElementById('run-metadata').textContent = `Executed: ${latest.timestamp}`;
+          document.getElementById('summary-content').textContent = latest.agent_summary || 'No content provided.';
+        } else {
+          document.getElementById('summary-content').textContent = 'No run records deployed yet.';
+        }
+
+        // Fetch manifest history
+        const manifestRes = await fetch('./data/manifest.json?t=' + Date.now());
+        if (manifestRes.ok) {
+          const history = await manifestRes.json();
+          const container = document.getElementById('history-container');
+          container.innerHTML = '';
+
+          history.forEach(run => {
+            const li = document.createElement('li');
+            li.className = 'history-item';
+            li.innerHTML = `
+              <div class="history-time">${run.timestamp.replace('T', ' ').slice(0, 19)} UTC</div>
+              <div class="history-snippet">${run.summary_snippet}</div>
+            `;
+            container.appendChild(li);
+          });
+        }
+      } catch (err) {
+        console.error('Dashboard load failure:', err);
+      }
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>

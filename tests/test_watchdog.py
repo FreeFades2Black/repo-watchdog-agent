@@ -1,12 +1,14 @@
-﻿"""
+"""
 Unit Test Suite for Repo Watchdog Agent
-Validates GitHub REST API tool, agent synthesis, and markdown digest generation.
+Validates GitHub REST API tool, agent synthesis, markdown digest generation, and telemetry export.
 """
 
+import json
 from unittest.mock import MagicMock, patch
 
 from agent_watchdog import (
     build_deterministic_digest,
+    export_dashboard_telemetry,
     inspect_repository_trail,
     main,
     summon_the_watchman,
@@ -20,16 +22,16 @@ def test_inspect_repository_trail_success(monkeypatch):
             "sha": "a1b2c3d4e5f6",
             "commit": {
                 "author": {"name": "Roland Deschain"},
-                "message": "feat(core): harden sentinel boundary\nExtra details"
-            }
+                "message": "feat(core): harden sentinel boundary\nExtra details",
+            },
         },
         {
             "sha": "f9e8d7c6b5a4",
             "commit": {
                 "author": {"name": "Eddie Dean"},
-                "message": "fix(api): handle token rotation gracefully"
-            }
-        }
+                "message": "fix(api): handle token rotation gracefully",
+            },
+        },
     ]
 
     fake_prs = [
@@ -37,7 +39,7 @@ def test_inspect_repository_trail_success(monkeypatch):
             "number": 101,
             "title": "Add multi-agent consensus policy",
             "merged_at": "2099-01-01T12:00:00Z",
-            "user": {"login": "gunslinger"}
+            "user": {"login": "gunslinger"},
         }
     ]
 
@@ -107,19 +109,63 @@ def test_build_deterministic_digest():
     assert "🟢 `HEALTHY`" in digest
 
 
+def test_export_dashboard_telemetry(tmp_path):
+    """Verify export_dashboard_telemetry creates latest.json and appends to manifest.json."""
+    docs_dir = tmp_path / "docs"
+    fake_reports = [{"repo": "microsoft/agent-framework", "report": "All clear"}]
+
+    # 1. First run
+    export_dashboard_telemetry("Initial sentinel run summary", fake_reports, docs_dir=str(docs_dir))
+
+    latest_path = docs_dir / "data" / "latest.json"
+    manifest_path = docs_dir / "data" / "manifest.json"
+
+    assert latest_path.exists()
+    assert manifest_path.exists()
+
+    latest_data = json.loads(latest_path.read_text(encoding="utf-8"))
+    assert latest_data["status"] == "Success"
+    assert latest_data["agent_summary"] == "Initial sentinel run summary"
+    assert len(latest_data["tracked_repos"]) == 1
+
+    manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert len(manifest_data) == 1
+    assert manifest_data[0]["summary_snippet"] == "Initial sentinel run summary"
+
+    # 2. Second run (appends to manifest and keeps history)
+    export_dashboard_telemetry("Second sentinel run summary", fake_reports, docs_dir=str(docs_dir))
+    manifest_data2 = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert len(manifest_data2) == 2
+    assert manifest_data2[0]["summary_snippet"] == "Second sentinel run summary"
+
+
 def test_main_cli_execution(tmp_path, monkeypatch):
     """Verify main entrypoint handles CLI flags and writes output file."""
+    briefings_dir = tmp_path / "briefings"
+    docs_dir = tmp_path / "docs"
     monkeypatch.setattr(
         "sys.argv",
-        ["agent_watchdog.py", "--dry-run", "--output-dir", str(tmp_path), "--repos", "microsoft/agent-framework"]
+        [
+            "agent_watchdog.py",
+            "--dry-run",
+            "--output-dir",
+            str(briefings_dir),
+            "--docs-dir",
+            str(docs_dir),
+            "--repos",
+            "microsoft/agent-framework",
+        ],
     )
 
     with patch("agent_watchdog.inspect_repository_trail") as mock_inspect:
         mock_inspect.return_value = "=== Trail Report ===\n- [abc1234] Test User: chore: test commit"
         main()
 
-    files = list(tmp_path.glob("digest-*.md"))
+    files = list(briefings_dir.glob("digest-*.md"))
     assert len(files) == 1
     content = files[0].read_text(encoding="utf-8")
     assert "Daily Repository Intelligence Digest" in content
     assert "Test User: chore: test commit" in content
+
+    assert (docs_dir / "data" / "latest.json").exists()
+    assert (docs_dir / "data" / "manifest.json").exists()

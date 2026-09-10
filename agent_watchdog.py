@@ -1,11 +1,13 @@
-﻿# ==============================================================================
+# ==============================================================================
 # "The man in black fled across the desert, and the gunslinger followed."
 # Ka is a wheel; the watchman stands upon the beam, tracking all movement.
 # ==============================================================================
 
 import argparse
 import datetime
+import json
 import os
+from typing import Any
 
 import requests
 
@@ -176,11 +178,72 @@ def build_deterministic_digest(reports: dict[str, str], target_repos: list[str])
     return "\n".join(lines)
 
 
+# ------------------------------------------------------------------------------
+# Dashboard Exporter Extension: Telemetry persistence for GitHub Pages
+# ------------------------------------------------------------------------------
+
+def export_dashboard_telemetry(
+    agent_summary: str,
+    repo_reports: list[dict[str, Any]],
+    docs_dir: str | None = None
+):
+    """
+    Persists structured run data for the static dashboard in docs/data.
+    """
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    date_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+
+    base_docs = docs_dir or os.path.join(os.getcwd(), "docs")
+    data_dir = os.path.join(base_docs, "data")
+    os.makedirs(data_dir, exist_ok=True)
+
+    # 1. Individual Run Payload
+    run_payload = {
+        "timestamp": timestamp,
+        "date": date_str,
+        "status": "Success",
+        "agent_summary": agent_summary,
+        "tracked_repos": repo_reports
+    }
+
+    # Write latest run snapshot
+    latest_file = os.path.join(data_dir, "latest.json")
+    with open(latest_file, "w", encoding="utf-8") as f:
+        json.dump(run_payload, f, indent=2)
+
+    # 2. Update Run Manifest (Keep last 30 runs)
+    manifest_file = os.path.join(data_dir, "manifest.json")
+    manifest = []
+    if os.path.exists(manifest_file):
+        try:
+            with open(manifest_file, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            manifest = []
+
+    # Insert latest record at the top
+    manifest.insert(0, {
+        "timestamp": timestamp,
+        "date": date_str,
+        "status": "Success",
+        "summary_snippet": agent_summary[:160] + "..." if len(agent_summary) > 160 else agent_summary
+    })
+
+    # Prune history to last 30 entries
+    manifest = manifest[:30]
+
+    with open(manifest_file, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+
+    print(f"[+] Watchdog telemetry successfully exported to {data_dir}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Gunslinger Sentinel: Repo Watchdog Agent")
     parser.add_argument("--dry-run", action="store_true", help="Run local deterministic analysis without live LLM API calls")
     parser.add_argument("--repos", nargs="+", default=TARGET_REPOS, help="Override target repositories to scan")
     parser.add_argument("--output-dir", default="briefings", help="Output directory for generated daily digests")
+    parser.add_argument("--docs-dir", default=None, help="Output directory for docs/data dashboard export")
     args = parser.parse_args()
 
     target_repos = args.repos
@@ -193,6 +256,7 @@ def main():
     has_api_creds = bool(os.environ.get("AZURE_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY"))
     run_live_agent = HAVE_AGENT_FRAMEWORK and has_api_creds and not args.dry_run
 
+    reports = {}
     if run_live_agent:
         print(f"[+] Summoning Microsoft Agent Framework Sentinel for: {', '.join(target_repos)}")
         agent = summon_the_watchman()
@@ -204,9 +268,14 @@ def main():
         )
         response = agent.run(prompt)
         digest_content = response.content if hasattr(response, "content") else str(response)
+        # Fetch raw reports for dashboard payload
+        for repo in target_repos:
+            try:
+                reports[repo] = inspect_repository_trail(repo)
+            except (requests.RequestException, KeyError, ValueError, RuntimeError) as e:
+                reports[repo] = f"=== Trail Report for: {repo} ===\nError scanning trail: {e}"
     else:
         print(f"[+] Gathering trail logs across perimeter ({len(target_repos)} repositories)...")
-        reports = {}
         for repo in target_repos:
             try:
                 reports[repo] = inspect_repository_trail(repo)
@@ -215,12 +284,17 @@ def main():
                 reports[repo] = f"=== Trail Report for: {repo} ===\nError scanning trail: {e}"
         digest_content = build_deterministic_digest(reports, target_repos)
 
+    # 1. Write markdown briefing
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(f"# Daily Repository Intelligence Digest - {today}\n\n")
         f.write(digest_content)
         f.write("\n")
-        
     print(f"Digest filed successfully at {output_file}")
+
+    # 2. Export dashboard telemetry (docs/data)
+    repo_payloads = [{"repo": r, "report": reports.get(r, "")} for r in target_repos]
+    docs_dir = args.docs_dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs")
+    export_dashboard_telemetry(digest_content, repo_payloads, docs_dir=docs_dir)
 
 
 if __name__ == "__main__":
