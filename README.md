@@ -3,11 +3,15 @@
 
 [![Sentinel Test & Quality Gate](https://github.com/FreeFades2Black/repo-watchdog-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/FreeFades2Black/repo-watchdog-agent/actions)
 [![Daily Upstream Watchdog](https://github.com/FreeFades2Black/repo-watchdog-agent/actions/workflows/daily-watchdog.yml/badge.svg)](https://github.com/FreeFades2Black/repo-watchdog-agent/actions)
+[![Live Dashboard](https://img.shields.io/badge/Live%20Dashboard-freefades2black.github.io-2ea44f?style=flat-square&logo=githubpages&logoColor=white)](https://freefades2black.github.io/repo-watchdog-agent/)
 [![Python Version](https://img.shields.io/badge/Python-3.11%20%7C%203.10-blue?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Microsoft Agent Framework](https://img.shields.io/badge/Agent%20Engine-Microsoft%20Agent%20Framework-0078D4?style=flat-square&logo=microsoftazure&logoColor=white)](https://aka.ms/agent-framework)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
 An enterprise-grade autonomous monitoring agent powered by the **Microsoft Agent Framework (MAF)** and **Azure OpenAI**. Driven by a scheduled GitHub Actions cron flywheel, the Watchdog autonomously scans upstream dependencies, pulls rolling 24-hour commit and merged pull request telemetry via typed tool invocations, isolates breaking architectural mutations, and publishes structured executive intelligence digests.
+
+> [!TIP]
+> 🌐 **Live Web Dashboard:** Monitor upstream breaking changes, daily briefings, and execution telemetry in real time at **[https://freefades2black.github.io/repo-watchdog-agent/](https://freefades2black.github.io/repo-watchdog-agent/)**.
 
 ---
 
@@ -71,10 +75,25 @@ flowchart TD
 3. **Microsoft Agent Framework (`Agent`):** Unifies concepts across AutoGen and Semantic Kernel. Employs function calling / tool execution loops to ingest raw trail reports and reason through dependency drift.
 4. **Deterministic Synthesis Engine:** Provides zero-API fallback capabilities for local unit testing and dry runs, guaranteeing CI/CD pipelines never fail due to upstream LLM rate limits.
 5. **Dossier Storage Engine:** Automatically commits daily reports to `briefings/digest-{YYYY-MM-DD}.md`, preventing duplicate commits through index caching checks (`git diff --cached --quiet`).
+6. **Live Dashboard & Telemetry Engine (`docs/`):** Deploys a zero-dependency tactical UI to GitHub Pages, serving breaking-change alerts, health badges, and historical manifests.
 
 ---
 
-## 📦 2. Implementation Files
+## 🌐 2. Live Web Dashboard (GitHub Pages)
+
+The Sentinel monitoring pipeline automatically updates and deploys a live static dashboard hosted on **GitHub Pages**:
+
+| Resource | Direct Link | Purpose |
+| :--- | :--- | :--- |
+| **Live Web Dashboard** | **[https://freefades2black.github.io/repo-watchdog-agent/](https://freefades2black.github.io/repo-watchdog-agent/)** | Real-time tactical dashboard with breaking change warning banners |
+| **Latest Telemetry API** | **[data/latest.json](https://freefades2black.github.io/repo-watchdog-agent/data/latest.json)** | Structured machine-readable JSON payload of the most recent audit |
+| **Historical Manifest** | **[data/manifest.json](https://freefades2black.github.io/repo-watchdog-agent/data/manifest.json)** | Rolling audit execution index and run history |
+| **Detailed Architecture** | [GITHUB_PAGES_DASHBOARD.md](GITHUB_PAGES_DASHBOARD.md) | Deployment architecture and GitHub Pages workflow guide |
+| **Breaking Changes Spec** | [DASHBOARD_BREAKING_CHANGES.md](DASHBOARD_BREAKING_CHANGES.md) | Telemetry schema and banner parsing specification |
+
+---
+
+## 📦 3. Implementation Files
 
 ### `requirements.txt`
 ```plaintext
@@ -320,7 +339,7 @@ if __name__ == "__main__":
 
 ---
 
-## ⚡ 3. Automation via GitHub Actions
+## ⚡ 4. Automation via GitHub Actions
 
 ### `.github/workflows/daily-watchdog.yml`
 ```yaml
@@ -380,7 +399,7 @@ jobs:
 
 ---
 
-## 🚀 4. Step-by-Step Deployment & Configuration Guide
+## 🚀 5. Step-by-Step Deployment & Configuration Guide
 
 ### Step 1: Initialize Repository
 Clone or create your central monitoring repository:
@@ -434,7 +453,7 @@ In your GitHub repository:
 
 ---
 
-## 🧪 5. Local Development, Testing & Verification
+## 🧪 6. Local Development, Testing & Verification
 
 ### Running Locally
 ```bash
@@ -459,20 +478,22 @@ Expected Output:
 ============================= test session starts =============================
 platform win32 / linux -- Python 3.11.x, pytest-9.x.x
 configfile: pytest.ini
-collected 5 items
+collected 7 items
 
-tests/test_watchdog.py::test_inspect_repository_trail_success PASSED     [ 20%]
-tests/test_watchdog.py::test_inspect_repository_trail_api_error PASSED   [ 40%]
-tests/test_watchdog.py::test_summon_the_watchman PASSED                  [ 60%]
-tests/test_watchdog.py::test_build_deterministic_digest PASSED           [ 80%]
+tests/test_watchdog.py::test_inspect_repository_trail_success PASSED     [ 14%]
+tests/test_watchdog.py::test_inspect_repository_trail_api_error PASSED   [ 28%]
+tests/test_watchdog.py::test_summon_the_watchman PASSED                  [ 42%]
+tests/test_watchdog.py::test_build_deterministic_digest PASSED           [ 57%]
+tests/test_watchdog.py::test_parse_and_export_telemetry_breaking_detected PASSED [ 71%]
+tests/test_watchdog.py::test_parse_and_export_telemetry_stable PASSED    [ 85%]
 tests/test_watchdog.py::test_main_cli_execution PASSED                   [100%]
 
-============================== 5 passed in 0.19s ==============================
+============================== 7 passed in 0.26s ==============================
 ```
 
 ---
 
-## 📜 6. Sample Generated Intelligence Digest
+## 📜 7. Sample Generated Intelligence Digest
 
 When executed, the agent generates Markdown dossiers stored in `briefings/digest-YYYY-MM-DD.md`:
 
@@ -513,7 +534,7 @@ No explicit breaking contract mutations or deprecation tags flagged in the past 
 
 ---
 
-## 🛡️ 7. Security Posture & Enterprise Governance
+## 🛡️ 8. Security Posture & Enterprise Governance
 
 * **Zero Hardcoded Secrets:** All external API communications rely on ephemeral GitHub Actions environment tokens and Azure OpenAI key rotation policies.
 * **Rate-Limit Resilience:** GitHub REST queries include authorization bearer tokens elevating the rate limit to 5,000 requests/hour per runner.
