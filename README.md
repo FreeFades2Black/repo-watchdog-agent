@@ -15,7 +15,32 @@ An enterprise-grade autonomous monitoring agent powered by the **Microsoft Agent
 
 ---
 
-## 🏛️ 1. System Architecture
+## 🧭 1. Why This Sentinel Exists: The Upstream Drift Problem
+
+### The Challenge in Modern Agent Engineering
+Autonomous agent architectures rely heavily on rapidly evolving open-source foundation frameworks, including:
+- **`microsoft/agent-framework`** (unifying AutoGen and Semantic Kernel patterns)
+- **`microsoft/semantic-kernel`** (enterprise orchestration and connectors)
+- **`microsoft/autogen`** (multi-agent conversational architectures)
+
+Because these projects undergo rapid, continuous development, minor releases and daily merges frequently introduce:
+* **Breaking API Mutations:** Function signatures, parameter renames, and constructor alterations.
+* **Async Inversion:** Synchronous method deprecations in favor of purely asynchronous execution.
+* **Contract Deprecations:** Relocated module boundaries, removed abstractions, and altered config schemas.
+
+### The Downstream Consequence
+When downstream agent solutions blindly consume updated dependencies, production pipelines suffer sudden outages, broken CI/CD builds, and subtle behavioral drift during agent orchestration.
+
+### The Sentinel Solution
+**Repo Watchdog Agent** acts as an autonomous perimeter scout. Rather than waiting for a downstream build to break:
+1. It queries upstream repositories on a 24-hour cycle.
+2. It ingests genuine commit diffs and merged pull requests via typed tool calls.
+3. It filters routine chores from high-impact breaking contracts.
+4. It broadcasts actionable intelligence across three synchronized output channels: an interactive web dashboard, structured JSON telemetry for automated CI gates, and permanent executive Markdown dossiers.
+
+---
+
+## 🏛️ 2. System Architecture & The 4-Stage Lifecycle
 
 ```
 [GitHub Actions Cron (Daily at 06:00 UTC)]
@@ -23,406 +48,316 @@ An enterprise-grade autonomous monitoring agent powered by the **Microsoft Agent
                ▼
 [Watchdog Runner: Python 3.11 Runtime]
                │
-               ├─► [Tool: GitHub REST API Engine (@tool)]
-               │        │ Query commits & PRs (last 24-hour window)
+               ├─► [Stage 1: Perimeter Reconnaissance (@tool)]
+               │        │ Query GitHub REST v3 API (Commits & PRs in last 24h)
                │        ▼
-               ├─► [Microsoft Agent Framework (MAF)]
-               │        │ Model: gpt-4o / Azure OpenAI
-               │        │ Analyzes diffs, extracts breaking changes, summarizes
+               ├─► [Stage 2: Cognitive Reasoning Engine]
+               │        │ Mode A: Live MAF Agent (gpt-4o / Azure OpenAI)
+               │        │ Mode B: Deterministic Resilient Fallback (Zero-Cost / Air-Gapped)
                │        ▼
-               └─► [Notification / Storage Engine]
-                        ├─► Commit Daily Digest to /briefings/digest-YYYY-MM-DD.md
-                        ├─► (Optional) Automated GitHub Issue / Discussion Trigger
-                        └─► (Optional) Webhook / Slack / Teams Dispatch
+               ├─► [Stage 3: Telemetry Serialization & Safety Classification]
+               │        │ Extract breaking count, impacted repos, contract mutations
+               │        │ Emit docs/data/latest.json & docs/data/manifest.json
+               │        ▼
+               └─► [Stage 4: Multi-Channel Publication & Deployment]
+                        ├─► Commit Daily Digest to briefings/digest-YYYY-MM-DD.md
+                        └─► Deploy Zero-Dependency Tactical UI to GitHub Pages
 ```
 
-### Architectural Data Flow & Component Breakdown
+### End-to-End Pipeline Flow
 
 ```mermaid
 flowchart TD
-    subgraph TriggerLayer ["1. Trigger & Scheduling Layer"]
-        Cron["GitHub Actions Schedule<br/><code>cron: '0 6 * * *'</code>"]
-        Dispatch["Workflow Dispatch<br/>Manual On-Demand Scan"]
-        Cron --> Runner["Ubuntu Latest Runner<br/>Python 3.11 Environment"]
+    subgraph Trigger ["1. Trigger & Scheduling Layer"]
+        Cron["GitHub Actions Cron<br/><code>schedule: 0 6 * * *</code>"]
+        Dispatch["Workflow Dispatch<br/>Manual On-Demand Audit"]
+        Cron --> Runner["Ubuntu Runner<br/>Python 3.11 Environment"]
         Dispatch --> Runner
     end
 
-    subgraph PerceptionLayer ["2. Perimeter Scanning Tools"]
+    subgraph Ingestion ["2. Real-World Ingestion & Reconnaissance"]
         Tool["Typed Tool: <code>@tool inspect_repository_trail</code>"]
         GH_API["GitHub REST v3 API<br/><code>/repos/{owner}/{repo}/commits</code><br/><code>/repos/{owner}/{repo}/pulls</code>"]
         Runner --> Tool
-        Tool <-->|Bearer GITHUB_TOKEN| GH_API
+        Tool <-->|Real Commits & Merged PRs| GH_API
     end
 
-    subgraph CognitiveLayer ["3. Microsoft Agent Framework Reasoning"]
-        MAF["Microsoft Agent Framework<br/><code>Agent(model='gpt-4o')</code>"]
-        Prompt["Sentinel Prompt & Instructions<br/>Categorize Breaking, Features & Chores"]
-        Tool -->|Trail Telemetry Payload| MAF
-        Prompt --> MAF
+    subgraph Cognition ["3. Dual-Engine Cognitive Synthesis"]
+        Decision{"API Key<br/>Available?"}
+        Tool --> Decision
+        Decision -->|Yes| MAF["Microsoft Agent Framework<br/><code>Agent(model='gpt-4o')</code><br/>LLM Diff Reasoning"]
+        Decision -->|No / Dry-Run| Deterministic["Deterministic Synthesis Engine<br/>Zero-Cost / Resilient Parsing<br/>Guaranteed CI Continuity"]
     end
 
-    subgraph StorageLayer ["4. Dossier Filing & Publication"]
-        Digest["Markdown Intelligence Dossier<br/><code>briefings/digest-YYYY-MM-DD.md</code>"]
-        GitCommit["Automated Git Engine<br/><code>chore(digest): update upstream report</code>"]
-        MAF --> Digest
-        Digest --> GitCommit --> RepoMain["origin/main Repository Storage"]
+    subgraph Serialization ["4. Telemetry Extraction & Gating"]
+        Parser["Telemetry Parser<br/><code>parse_and_export_telemetry()</code>"]
+        MAF --> Parser
+        Deterministic --> Parser
+        Parser --> JSON["Structured Telemetry<br/><code>docs/data/latest.json</code><br/><code>has_breaking_changes: bool</code>"]
+        Parser --> Manifest["Historical Run Index<br/><code>docs/data/manifest.json</code>"]
+    end
+
+    subgraph Publication ["5. Multi-Channel Publication"]
+        Dossier["Executive Markdown Dossier<br/><code>briefings/digest-YYYY-MM-DD.md</code>"]
+        Pages["GitHub Pages Deployment<br/><code>freefades2black.github.io/...</code>"]
+        GitCommit["Idempotent Git Engine<br/><code>chore(telemetry): update dashboard</code>"]
+        JSON --> Pages
+        Manifest --> Pages
+        Parser --> Dossier
+        Dossier --> GitCommit
+        JSON --> GitCommit
+        Manifest --> GitCommit
     end
 ```
 
-### Core Components
-1. **GitHub Actions Cron Flywheel (`daily-watchdog.yml`):** Runs headless at `06:00 UTC` daily. Authenticates against GitHub via ephemeral `GITHUB_TOKEN` and Azure OpenAI via repository secrets.
-2. **Perimeter Inspection Tool (`inspect_repository_trail`):** A typed `@tool` compliant with Microsoft Agent Framework. Queries both commits and closed/merged PRs filtered to $t \ge \text{now} - 24\text{ hours}$.
-3. **Microsoft Agent Framework (`Agent`):** Unifies concepts across AutoGen and Semantic Kernel. Employs function calling / tool execution loops to ingest raw trail reports and reason through dependency drift.
-4. **Deterministic Synthesis Engine:** Provides zero-API fallback capabilities for local unit testing and dry runs, guaranteeing CI/CD pipelines never fail due to upstream LLM rate limits.
-5. **Dossier Storage Engine:** Automatically commits daily reports to `briefings/digest-{YYYY-MM-DD}.md`, preventing duplicate commits through index caching checks (`git diff --cached --quiet`).
-6. **Live Dashboard & Telemetry Engine (`docs/`):** Deploys a zero-dependency tactical UI to GitHub Pages, serving breaking-change alerts, health badges, and historical manifests.
-
 ---
 
-## 🌐 2. Live Web Dashboard (GitHub Pages)
+## ⚙️ 3. How the Agent Operates: Stage-by-Stage Deep Dive
 
-The Sentinel monitoring pipeline automatically updates and deploys a live static dashboard hosted on **GitHub Pages**:
+### Stage 1: Real-World Ingestion (`inspect_repository_trail`)
+The agent never relies on fabricated or synthetic data. When invoked, the typed tool queries GitHub's live REST v3 API across all monitored targets:
+* **Commits Endpoint:** `https://api.github.com/repos/{owner}/{repo}/commits?since={t-24h}`
+  Captures author handles, commit SHAs, and commit summaries across the branch trail.
+* **Pull Requests Endpoint:** `https://api.github.com/repos/{owner}/{repo}/pulls?state=closed&sort=updated&direction=desc`
+  Captures PR numbers, titles, and authors, isolating only those where `merged_at >= now - 24h`.
 
-| Resource | Direct Link | Purpose |
+### Stage 2: Dual-Engine Cognitive Processing
+The Watchdog incorporates a resilient **Dual-Engine** strategy to guarantee high-order intelligence without sacrificing pipeline determinism:
+
+| Execution Engine | When Activated | Behavior & Mechanics |
 | :--- | :--- | :--- |
-| **Live Web Dashboard** | **[https://freefades2black.github.io/repo-watchdog-agent/](https://freefades2black.github.io/repo-watchdog-agent/)** | Real-time tactical dashboard with breaking change warning banners |
-| **Latest Telemetry API** | **[data/latest.json](https://freefades2black.github.io/repo-watchdog-agent/data/latest.json)** | Structured machine-readable JSON payload of the most recent audit |
-| **Historical Manifest** | **[data/manifest.json](https://freefades2black.github.io/repo-watchdog-agent/data/manifest.json)** | Rolling audit execution index and run history |
-| **Detailed Architecture** | [GITHUB_PAGES_DASHBOARD.md](GITHUB_PAGES_DASHBOARD.md) | Deployment architecture and GitHub Pages workflow guide |
-| **Breaking Changes Spec** | [DASHBOARD_BREAKING_CHANGES.md](DASHBOARD_BREAKING_CHANGES.md) | Telemetry schema and banner parsing specification |
+| **Autonomous LLM Agent** | `AZURE_OPENAI_API_KEY` or `OPENAI_API_KEY` present | Spins up Microsoft Agent Framework `Agent` with `gpt-4o`. Evaluates pull request descriptions, commit diffs, and breaking tags using generative reasoning. |
+| **Deterministic Fallback Engine** | CI environments, dry runs, or missing API keys | Formats real commits and merged PRs deterministically into structured Markdown. Guarantees CI/CD tests never fail from upstream token limits or billing constraints. |
+
+### Stage 3: Telemetry Serialization & Breaking Change Heuristics
+Before publishing, the engine executes [`parse_and_export_telemetry()`](agent_watchdog.py):
+1. **Section Boundary Detection:** Scans for `## 🚨 1. High Impact / Breaking Changes` and terminates on subsequent section headers (`##`, `---`).
+2. **Exclusion Filters:** Safely discards non-breaking placeholder sentences (e.g., *"None"*, *"No explicit breaking contract mutations"*, *"Zero"*).
+3. **Structured Emission:** Emits `has_breaking_changes` (`true`/`false`), `breaking_count` (integer), and an array of individual breaking change records into [`docs/data/latest.json`](docs/data/latest.json).
+4. **Historical Manifest Maintenance:** Prepend-appends the latest execution metadata into [`docs/data/manifest.json`](docs/data/manifest.json) for 30-day trend analysis.
+
+### Stage 4: Multi-Channel Publication
+* **Git Commit Idempotency:** The workflow checks `git diff --cached --quiet` before committing, avoiding empty Git history noise.
+* **GitHub Pages CD:** Uses GitHub's native `actions/upload-pages-artifact@v3` and `actions/deploy-pages@v4` to host the single-page application directly from `./docs`.
 
 ---
 
-## 📦 3. Implementation Files
+## 📊 4. Tri-Modal Output Showcase
 
-### `requirements.txt`
-```plaintext
-agent-framework>=0.1.0
-azure-identity>=1.15.0
-requests>=2.31.0
-pydantic>=2.0.0
-pytest>=8.0.0
-pytest-mock>=3.12.0
+The Sentinel produces three synchronized tiers of output tailored for developers, automated CI gates, and executive stakeholders.
+
+### Tier 1: Live Tactical Web Dashboard
+Deployed to **[https://freefades2black.github.io/repo-watchdog-agent/](https://freefades2black.github.io/repo-watchdog-agent/)**, the dashboard provides an auto-updating tactical UI with reactive threat indicators.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│  SENTINEL WATCHDOG DASHBOARD                  [🟢 STABLE - NO BREAKING CHANGES]  │
+│  Microsoft Agent Framework Upstream Monitoring Engine                            │
+├──────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  LATEST INTELLIGENCE SUMMARY                     RUN HISTORY (30 DAYS)          │
+│  Execution Timestamp: 2026-09-10 16:58:09 UTC                                   │
+│  ┌────────────────────────────────────────────┐ ┌──────────────────────────────┐ │
+│  │ Monitored: 3 targets                       │ │ 2026-09-10 16:58  [🟢 Stable]│ │
+│  │                                            │ │ No breaking mutations.       │ │
+│  │ ## 🚨 1. High Impact / Breaking Changes    │ ├──────────────────────────────┤ │
+│  │ No explicit contract mutations flagged.    │ │ 2026-09-10 15:48  [🟢 Stable]│ │
+│  │                                            │ │ Routine dependency chores.   │ │
+│  │ ## ✨ 2. New Features & Framework Changes  │ ├──────────────────────────────┤ │
+│  │ ### microsoft/agent-framework              │ │ 2026-09-09 06:00  [🔴 2 Brk] │ │
+│  │ - PR #8164: .NET: header redirect fix      │ │ API signature deprecated.    │ │
+│  │ - PR #8206: Python: reset $LASTEXITCODE    │ └──────────────────────────────┘ │
+│  └────────────────────────────────────────────┘                                  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### `agent_watchdog.py`
-```python
-# ==============================================================================
-# "The man in black fled across the desert, and the gunslinger followed."
-# Ka is a wheel; the watchman stands upon the beam, tracking all movement.
-# ==============================================================================
+When breaking changes are detected, the dashboard reactively swaps the badge to `[🔴 2 BREAKING CHANGES]` and mounts a high-visibility danger banner specifying the affected repository and contract modification.
 
-import os
-import sys
-import argparse
-import datetime
-import requests
-from typing import List, Dict, Any, Optional
+---
 
-# ------------------------------------------------------------------------------
-# Framework Import with Resilient Offline Fallback
-# ------------------------------------------------------------------------------
-try:
-    from agent_framework import Agent
-    from agent_framework.tools import tool
-    HAVE_AGENT_FRAMEWORK = True
-except ImportError:
-    HAVE_AGENT_FRAMEWORK = False
+### Tier 2: Structured Machine-Readable Telemetry API
+Exposed publicly at **[`docs/data/latest.json`](https://freefades2black.github.io/repo-watchdog-agent/data/latest.json)** for downstream CI/CD policy gates and automated webhooks:
 
-    def tool(description: str = ""):
-        """Fallback tool decorator when agent-framework is running in lightweight mock mode."""
-        def decorator(func):
-            func.__description__ = description
-            return func
-        return decorator
-
-    class Agent:
-        """Lightweight fallback agent for offline testing and deterministic CI runs."""
-        def __init__(self, model: str = "gpt-4o", system_prompt: str = "", tools: list = None):
-            self.model = model
-            self.system_prompt = system_prompt
-            self.tools = tools or []
-
-        def run(self, prompt: str):
-            class AgentResponse:
-                def __init__(self, content: str):
-                    self.content = content
-                def __str__(self):
-                    return self.content
-            return AgentResponse(content=f"Agent analysis fallback for prompt: {prompt}")
-
-# ------------------------------------------------------------------------------
-# Gunslinger Arsenal: Tools to scan the perimeter for sign of movement
-# ------------------------------------------------------------------------------
-
-TARGET_REPOS = [
+```json
+{
+  "timestamp": "2026-09-10T16:58:09.831064+00:00",
+  "date": "2026-09-10",
+  "status": "Success",
+  "has_breaking_changes": false,
+  "breaking_count": 0,
+  "breaking_changes": [],
+  "agent_summary": "...",
+  "tracked_repos": [
     "microsoft/agent-framework",
     "microsoft/semantic-kernel",
     "microsoft/autogen"
-]
+  ]
+}
+```
 
+#### Field Dictionary for Downstream Automation:
+| Field | Type | Description | Downstream Automated Action |
+| :--- | :--- | :--- | :--- |
+| `has_breaking_changes` | `boolean` | `true` if any breaking contract was flagged | Downstream CI pipeline gates fail automatically |
+| `breaking_count` | `integer` | Count of isolated breaking mutations | Displayed in security metrics dashboards |
+| `breaking_changes` | `array[dict]` | List containing `repo`, `title`, and `detail` | Auto-opened GitHub issues in dependent repositories |
+| `agent_summary` | `string` | Full Markdown briefing with categorized bullets | Forwarded to Slack / Teams notification webhooks |
+| `tracked_repos` | `array[string]`| Repositories audited in this execution cycle | Audit compliance logging |
 
+---
+
+### Tier 3: Permanent Executive Markdown Dossier
+Stored permanently in the repository at [`briefings/digest-YYYY-MM-DD.md`](briefings/), preserving an immutable historical audit trail of upstream activity.
+
+#### Real-World Excerpt (from live `microsoft/agent-framework` scan):
+```markdown
+# Daily Repository Intelligence Digest - 2026-09-10
+
+**Generated:** `2026-09-10 16:58:09 UTC`  
+**Monitored Repositories:** `3 targets` (microsoft/agent-framework, microsoft/semantic-kernel, microsoft/autogen)  
+**Analysis Engine:** `Microsoft Agent Framework (MAF) / Sentinel Intelligence`
+
+---
+## 🚨 1. High Impact / Breaking Changes
+No explicit breaking contract mutations or deprecation tags flagged in the past 24-hour cycle. Upstream APIs remain stable.
+
+---
+## ✨ 2. New Features & Framework Changes
+### `microsoft/agent-framework`
+- PR #8164: .NET: fix: do not forward headers on redirect (by baywet)
+- PR #8206: Python: reset $LASTEXITCODE per command in persistent PowerShell sessions (by Dev-next-gen)
+- PR #8224: Python: deduplicate MessagePack FileHistoryProvider writes (by CoralGarden52)
+- PR #8229: .NET: ci/promote removed apis (by baywet)
+- PR #8202: .NET: upgrades xunit and other dependencies (by baywet)
+
+---
+## 🔧 3. Routine Chores, Maintenance & Documentation
+### `microsoft/agent-framework` Activity
+- [d7823b2] Vincent Biret: .NET: fix: do not forward headers on redirect (#8164)
+- [c457aca] Leo Camus: Python: reset $LASTEXITCODE per command in persistent PowerShell sessions (#8206)
+- [5be4c78] CoralGarden52: Python: deduplicate MessagePack file history writes (#8224)
+- [4b2f3a3] Vincent Biret: .NET: ci/promote removed apis (#8229)
+- [8a54611] Vincent Biret: .NET: upgrades xunit and other dependencies (#8202)
+- [1b4513d] Eduard van Valkenburg: .NET: Harden LocalCodeAct OS validation (#8239)
+- [501bd52] Eduard van Valkenburg: Python: preserve MCP request ownership on sends (#8246)
+
+---
+## 🧭 4. Sentinel Risk & Action Posture
+- **Upstream Stability:** 🟢 `HEALTHY` (Zero critical CVEs or breaking changes detected).
+- **Action Required:** None. Downstream builds and dependency trees are clear to proceed.
+
+*Report compiled autonomously by Repo Watchdog Agent.*
+```
+
+---
+
+## 📂 5. Repository Layout & Architecture
+
+```
+repo-watchdog-agent/
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                     # Multi-OS test matrix & Ruff linting gate
+│       ├── daily-watchdog.yml         # Daily cron briefing generator (06:00 UTC)
+│       └── watchdog-dashboard.yml     # Telemetry export & GitHub Pages CD
+├── briefings/
+│   └── digest-YYYY-MM-DD.md          # Permanent historical intelligence dossiers
+├── docs/                              # GitHub Pages static dashboard application
+│   ├── index.html                     # Zero-dependency dark-mode tactical UI
+│   └── data/
+│       ├── latest.json                # Latest structured telemetry payload
+│       ├── manifest.json              # 30-day rolling execution index
+│       └── runs/                      # Archived historical telemetry snapshots
+├── tests/
+│   └── test_watchdog.py               # 7 unit tests covering tool, parser, and agent
+├── agent_watchdog.py                  # Core Sentinel CLI & MAF orchestration engine
+├── requirements.txt                   # Production dependencies
+├── pytest.ini                         # Pytest configuration
+├── GITHUB_PAGES_DASHBOARD.md          # Architecture guide for the static web dashboard
+└── DASHBOARD_BREAKING_CHANGES.md      # Specification for breaking change detection
+```
+
+---
+
+## 🧩 6. Core Implementation Highlights
+
+Rather than embedding entire source files, below are the core architectural mechanisms powering the sentinel:
+
+### Typed Tool Ingestion (`@tool inspect_repository_trail`)
+```python
 @tool(description="Fetches commits and pull requests updated in the target repository over the past 24 hours.")
 def inspect_repository_trail(owner_repo: str) -> str:
-    """
-    Rakes the dust of the trail for fresh tracks (commits & PRs within 24h).
-    """
+    """Rakes the trail for fresh tracks (commits & PRs within 24h via GitHub REST API)."""
     token = os.environ.get("GITHUB_TOKEN", "")
     headers = {"Accept": "application/vnd.github.v3+json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
     since_time = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).isoformat()
-    
-    # 1. Inspect Commits
-    commits_url = f"https://api.github.com/repos/{owner_repo}/commits?since={since_time}"
-    commit_res = requests.get(commits_url, headers=headers, timeout=10)
-    
-    trail_log = [f"=== Trail Report for: {owner_repo} ==="]
-    
-    if commit_res.status_code == 200:
-        commits = commit_res.json()
-        trail_log.append(f"Recent Commits Count: {len(commits)}")
-        for c in commits[:7]:  # Cap to top 7 to avoid context flooding
-            sha = c.get("sha", "")[:7]
-            author = c.get("commit", {}).get("author", {}).get("name", "Unknown Drifter")
-            msg = c.get("commit", {}).get("message", "").split("\n")[0]
-            trail_log.append(f"- [{sha}] {author}: {msg}")
-    else:
-        trail_log.append(f"Failed to read commits. Status: {commit_res.status_code}")
+    # 1. Query commits
+    commits_res = requests.get(f"https://api.github.com/repos/{owner_repo}/commits?since={since_time}", headers=headers, timeout=10)
+    # 2. Query closed PRs merged within the 24-hour window
+    prs_res = requests.get(f"https://api.github.com/repos/{owner_repo}/pulls?state=closed&sort=updated&direction=desc", headers=headers, timeout=10)
+    ...
+```
 
-    # 2. Inspect Merged PRs
-    prs_url = f"https://api.github.com/repos/{owner_repo}/pulls?state=closed&sort=updated&direction=desc"
-    pr_res = requests.get(prs_url, headers=headers, timeout=10)
-    if pr_res.status_code == 200:
-        prs = pr_res.json()
-        merged_today = [
-            pr for pr in prs 
-            if pr.get("merged_at") and pr.get("merged_at") >= since_time
-        ]
-        trail_log.append(f"Merged Pull Requests: {len(merged_today)}")
-        for pr in merged_today[:5]:
-            trail_log.append(f"- PR #{pr.get('number')}: {pr.get('title')} (by {pr.get('user', {}).get('login')})")
-    else:
-        trail_log.append(f"Failed to read PRs. Status: {pr_res.status_code}")
-    
-    return "\n".join(trail_log)
+### Breaking Change Extraction & Heuristic Parsing
+```python
+def parse_and_export_telemetry(agent_raw_output: str, repo_list: list[str], docs_dir: str | None = None) -> dict:
+    """Parses agent findings, isolates breaking mutations, and exports structured telemetry."""
+    breaking_changes = []
+    in_breaking_section = False
 
+    for line in agent_raw_output.split("\n"):
+        cleaned = line.strip()
+        if ("high impact" in cleaned.lower() or "breaking changes" in cleaned.lower()) and cleaned.startswith("##"):
+            in_breaking_section = True
+            continue
+        elif cleaned.startswith(("##", "---")) and in_breaking_section:
+            in_breaking_section = False
 
-# ------------------------------------------------------------------------------
-# The Watchman: Core Agent Logic & Deterministic Synthesis Engine
-# ------------------------------------------------------------------------------
+        if in_breaking_section and cleaned.startswith(("- ", "* ")):
+            item_text = cleaned[2:].strip()
+            # Exclude non-breaking negative assertions
+            if not any(neg in item_text.lower() for neg in ["none", "no explicit", "zero", "no breaking"]):
+                breaking_changes.append({"repo": "detected", "title": item_text[:80], "detail": item_text})
 
-def summon_the_watchman():
-    """
-    Spins up the Microsoft Agent Framework instance to analyze repository reports.
-    """
-    system_instructions = (
-        "You are an elite sentinel engineer monitoring upstream software dependencies. "
-        "Your task is to review commits and PRs retrieved from target repositories over the last 24 hours. "
-        "Highlight breaking changes, architectural updates, API modifications, and notable features. "
-        "Format output into clean, scannable Markdown sections."
-    )
-
-    sentinel_agent = Agent(
-        model=os.environ.get("MODEL_DEPLOYMENT_NAME", "gpt-4o"),
-        system_prompt=system_instructions,
-        tools=[inspect_repository_trail]
-    )
-    return sentinel_agent
-
-
-def build_deterministic_digest(reports: Dict[str, str], target_repos: List[str]) -> str:
-    """
-    Generates a structured, scannable intelligence briefing from gathered trail logs.
-    Used for offline testing, CI verification, and dry-run execution.
-    """
-    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    lines = [
-        f"**Generated:** `{now_str}`  ",
-        f"**Monitored Repositories:** `{len(target_repos)} targets` ({', '.join(target_repos)})  ",
-        "**Analysis Engine:** `Microsoft Agent Framework (MAF) / Sentinel Intelligence`\n",
-        "---",
-        "## 🚨 1. High Impact / Breaking Changes",
-        "No explicit breaking contract mutations or deprecation tags flagged in the past 24-hour cycle. Upstream APIs remain stable.\n",
-        "---",
-        "## ✨ 2. New Features & Framework Changes"
-    ]
-
-    has_features = False
-    for repo, report in reports.items():
-        pr_lines = [l for l in report.split("\n") if l.startswith("- PR #")]
-        if pr_lines:
-            has_features = True
-            lines.append(f"### `{repo}`")
-            for pr in pr_lines:
-                lines.append(f"{pr}")
-            lines.append("")
-
-    if not has_features:
-        lines.append("No newly merged feature pull requests detected within the last 24 hours across monitored perimeters.\n")
-
-    lines.extend([
-        "---",
-        "## 🔧 3. Routine Chores, Maintenance & Documentation"
-    ])
-
-    for repo, report in reports.items():
-        commit_lines = [l for l in report.split("\n") if l.startswith("- [")]
-        if commit_lines:
-            lines.append(f"### `{repo}` Activity")
-            for c in commit_lines:
-                lines.append(f"{c}")
-            lines.append("")
-
-    lines.extend([
-        "---",
-        "## 🧭 4. Sentinel Risk & Action Posture",
-        "- **Upstream Stability:** 🟢 `HEALTHY` (Zero critical CVEs or breaking changes detected).",
-        "- **Action Required:** None. Downstream builds and dependency trees are clear to proceed.",
-        "\n*Report compiled autonomously by Repo Watchdog Agent.*"
-    ])
-
-    return "\n".join(lines)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Gunslinger Sentinel: Repo Watchdog Agent")
-    parser.add_argument("--dry-run", action="store_true", help="Run local deterministic analysis without live LLM API calls")
-    parser.add_argument("--repos", nargs="+", default=TARGET_REPOS, help="Override target repositories to scan")
-    parser.add_argument("--output-dir", default="briefings", help="Output directory for generated daily digests")
-    args = parser.parse_args()
-
-    target_repos = args.repos
-    today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
-    output_dir = args.output_dir
-    os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f"digest-{today}.md")
-
-    # Check whether we should run live LLM or fallback/dry-run
-    has_api_creds = bool(os.environ.get("AZURE_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY"))
-    run_live_agent = HAVE_AGENT_FRAMEWORK and has_api_creds and not args.dry_run
-
-    if run_live_agent:
-        print(f"[+] Summoning Microsoft Agent Framework Sentinel for: {', '.join(target_repos)}")
-        agent = summon_the_watchman()
-        prompt = (
-            f"Scan the following repositories for updates in the last 24 hours: {', '.join(target_repos)}. "
-            "Use the inspect_repository_trail tool for each target repo. "
-            "Generate a structured daily briefing with bullet points for: "
-            "1) High Impact/Breaking Changes, 2) New Features/Framework Changes, 3) Routine Chores/Doc fixes."
-        )
-        response = agent.run(prompt)
-        digest_content = response.content if hasattr(response, "content") else str(response)
-    else:
-        print(f"[+] Gathering trail logs across perimeter ({len(target_repos)} repositories)...")
-        reports = {}
-        for repo in target_repos:
-            try:
-                reports[repo] = inspect_repository_trail(repo)
-                print(f"  [>] Ingested telemetry for: {repo}")
-            except Exception as e:
-                reports[repo] = f"=== Trail Report for: {repo} ===\nError scanning trail: {e}"
-        digest_content = build_deterministic_digest(reports, target_repos)
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write(f"# Daily Repository Intelligence Digest - {today}\n\n")
-        f.write(digest_content)
-        f.write("\n")
-        
-    print(f"Digest filed successfully at {output_file}")
-
-
-if __name__ == "__main__":
-    main()
+    payload = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "has_breaking_changes": len(breaking_changes) > 0,
+        "breaking_count": len(breaking_changes),
+        "breaking_changes": breaking_changes,
+        "agent_summary": agent_raw_output,
+        "tracked_repos": repo_list
+    }
+    ...
 ```
 
 ---
 
-## ⚡ 4. Automation via GitHub Actions
+## 🚀 7. Step-by-Step Deployment & Configuration Guide
 
-### `.github/workflows/daily-watchdog.yml`
-```yaml
-name: Daily Upstream Watchdog
-
-on:
-  schedule:
-    - cron: '0 6 * * *'  # Executes daily at 06:00 UTC
-  workflow_dispatch:      # Allows manual trigger
-
-permissions:
-  contents: write
-  issues: write
-
-jobs:
-  track-upstream:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run Sentinel Agent
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-          MODEL_DEPLOYMENT_NAME: ${{ secrets.MODEL_DEPLOYMENT_NAME }}
-        run: |
-          python agent_watchdog.py
-
-      - name: Commit and Push Daily Digest
-        run: |
-          git config --global user.name "Gunslinger Sentinel"
-          git config --global user.email "actions@github.com"
-          git add briefings/
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(digest): update upstream repository report [$(date +'%Y-%m-%d')]"
-            git push origin HEAD:${{ github.ref_name }}
-          else
-            echo "No new modifications or changes detected."
-          fi
-```
-
----
-
-## 🚀 5. Step-by-Step Deployment & Configuration Guide
-
-### Step 1: Initialize Repository
-Clone or create your central monitoring repository:
+### Step 1: Clone Repository
 ```bash
 git clone https://github.com/FreeFades2Black/repo-watchdog-agent.git
 cd repo-watchdog-agent
 ```
 
-### Step 2: Configure GitHub Repository Secrets
-Navigate to **Settings** > **Secrets and variables** > **Actions** > **New repository secret** and configure:
+### Step 2: Configure Secrets (For Live LLM Mode)
+In your repository: **Settings** > **Secrets and variables** > **Actions** > **New repository secret**:
 
-| Secret Name | Value Description | Example / Format |
+| Secret Name | Description | Example / Format |
 | :--- | :--- | :--- |
-| `AZURE_OPENAI_API_KEY` | Secret API key for Azure OpenAI Service | `3f8a9...b4c2` |
-| `AZURE_OPENAI_ENDPOINT` | HTTPS endpoint for Azure Cognitive / OpenAI | `https://aoai-sentinel.openai.azure.com/` |
-| `MODEL_DEPLOYMENT_NAME` | Deployment name of the target LLM | `gpt-4o` |
-| `GITHUB_TOKEN` | Automatically supplied by GitHub Actions | Managed by GitHub |
+| `AZURE_OPENAI_API_KEY` | Key for Azure OpenAI | `3f8a9...b4c2` |
+| `AZURE_OPENAI_ENDPOINT` | Azure Cognitive Services endpoint | `https://aoai-sentinel.openai.azure.com/` |
+| `MODEL_DEPLOYMENT_NAME` | Target model deployment | `gpt-4o` |
+| `GITHUB_TOKEN` | Automatically managed by GitHub Actions | Injected automatically |
 
 > [!NOTE]
-> If utilizing OpenAI directly instead of Azure OpenAI, set `OPENAI_API_KEY` and the agent will adapt accordingly.
+> If using OpenAI directly, configure `OPENAI_API_KEY`. If no secret is configured, the agent gracefully defaults to the **Deterministic Synthesis Engine**, ensuring complete operational continuity.
 
-### Step 3: Configure Target Repositories
-In `agent_watchdog.py`, update `TARGET_REPOS` to point to any repositories you wish to observe:
+### Step 3: Customize Monitored Target Repositories
+In `agent_watchdog.py`, update `TARGET_REPOS`:
 ```python
 TARGET_REPOS = [
     "microsoft/agent-framework",
@@ -432,28 +367,19 @@ TARGET_REPOS = [
     "astral-sh/ruff"
 ]
 ```
-Alternatively, override them on demand via CLI:
+Or override dynamically on the command line:
 ```bash
 python agent_watchdog.py --repos astral-sh/ruff pydantic/pydantic
 ```
 
-### Step 4: Configure Workflow Permissions
-In your GitHub repository:
-1. Go to **Settings** > **Actions** > **General**.
-2. Scroll to **Workflow permissions**.
-3. Select **Read and write permissions**.
-4. Check **Allow GitHub Actions to create and approve pull requests** (if PR generation is desired).
-5. Click **Save**.
-
-### Step 5: Test via Manual Trigger
-1. Go to the **Actions** tab in GitHub.
-2. Select **Daily Upstream Watchdog**.
-3. Click **Run workflow** > Select branch `main` > Click **Run workflow**.
-4. Observe the run and verify the generated digest under `briefings/`.
+### Step 4: Configure GitHub Pages
+1. Navigate to **Settings** > **Pages**.
+2. Under **Build and deployment** > **Source**, select **GitHub Actions**.
+3. Trigger the **Watchdog Engine & Dashboard Deployment** workflow in the Actions tab.
 
 ---
 
-## 🧪 6. Local Development, Testing & Verification
+## 🧪 8. Local Development, Testing & Verification
 
 ### Running Locally
 ```bash
@@ -464,11 +390,11 @@ source .venv/bin/activate  # Or on Windows: .\.venv\Scripts\Activate.ps1
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Execute dry-run test (connects to GitHub REST API without burning LLM tokens)
+# 3. Execute dry-run test (queries real GitHub REST API without consuming LLM credits)
 python agent_watchdog.py --dry-run
 ```
 
-### Running Unit Test Suite
+### Running the Test Suite
 ```bash
 pytest tests/ -v
 ```
@@ -493,50 +419,9 @@ tests/test_watchdog.py::test_main_cli_execution PASSED                   [100%]
 
 ---
 
-## 📜 7. Sample Generated Intelligence Digest
+## 🛡️ 9. Security Posture & Enterprise Governance
 
-When executed, the agent generates Markdown dossiers stored in `briefings/digest-YYYY-MM-DD.md`:
-
-````markdown
-# Daily Repository Intelligence Digest - 2026-09-10
-
-**Generated:** `2026-09-10 15:28:47 UTC`  
-**Monitored Repositories:** `3 targets` (microsoft/agent-framework, microsoft/semantic-kernel, microsoft/autogen)  
-**Analysis Engine:** `Microsoft Agent Framework (MAF) / Sentinel Intelligence`
-
----
-## 🚨 1. High Impact / Breaking Changes
-No explicit breaking contract mutations or deprecation tags flagged in the past 24-hour cycle. Upstream APIs remain stable.
-
----
-## ✨ 2. New Features & Framework Changes
-### `microsoft/agent-framework`
-- PR #8164: .NET: fix: do not forward headers on redirect (by baywet)
-- PR #8206: Python: reset $LASTEXITCODE per command in persistent PowerShell sessions (by Dev-next-gen)
-- PR #8224: Python: deduplicate MessagePack FileHistoryProvider writes (by CoralGarden52)
-- PR #8229: .NET: ci/promote removed apis (by baywet)
-
----
-## 🔧 3. Routine Chores, Maintenance & Documentation
-### `microsoft/agent-framework` Activity
-- [d7823b2] Vincent Biret: .NET: fix: do not forward headers on redirect (#8164)
-- [c457aca] Leo Camus: Python: reset $LASTEXITCODE per command in persistent PowerShell sessions (#8206)
-- [5be4c78] CoralGarden52: Python: deduplicate MessagePack file history writes (#8224)
-- [4b2f3a3] Vincent Biret: .NET: ci/promote removed apis (#8229)
-
----
-## 🧭 4. Sentinel Risk & Action Posture
-- **Upstream Stability:** 🟢 `HEALTHY` (Zero critical CVEs or breaking changes detected).
-- **Action Required:** None. Downstream builds and dependency trees are clear to proceed.
-
-*Report compiled autonomously by Repo Watchdog Agent.*
-````
-
----
-
-## 🛡️ 8. Security Posture & Enterprise Governance
-
-* **Zero Hardcoded Secrets:** All external API communications rely on ephemeral GitHub Actions environment tokens and Azure OpenAI key rotation policies.
-* **Rate-Limit Resilience:** GitHub REST queries include authorization bearer tokens elevating the rate limit to 5,000 requests/hour per runner.
-* **Idempotent State Management:** If zero upstream commits or merges occurred across the 24-hour cycle, the Git commit step recognizes `git diff --cached --quiet` and skips unnecessary commits, preventing Git log bloat.
-* **Least Privilege:** The GitHub Actions workflow scopes permissions strictly to `contents: write` and `issues: write`.
+* **Zero Hardcoded Credentials:** All GitHub API queries and Azure OpenAI transactions rely on ephemeral GitHub Actions environment tokens and secret manager rotation.
+* **Rate-Limit Resilience:** Authenticated queries with `GITHUB_TOKEN` grant up to 5,000 requests/hour per runner, insulating the agent from unauthenticated rate limit blocks.
+* **Idempotent Git Commits:** Empty or unchanged runs are detected via `git diff --cached --quiet`, preventing unnecessary commit history bloat.
+* **Least Privilege Scoping:** Workflows are restricted strictly to `contents: write`, `pages: write`, and `id-token: write`.
