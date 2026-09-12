@@ -1,0 +1,22 @@
+groups:
+  - name: repo_watchdog_alerts
+    rules:
+      - alert: WatchdogSpoolBufferGrowing
+        expr: watchdog_spool_queue_depth > 50
+        for: 5m
+        labels:
+          severity: warning
+          tier: devops-security
+        annotations:
+          summary: "Watchdog local spool buffer contains >50 records"
+          description: "Primary Azure Log Analytics ingestion failing. Watchdog is buffering audits locally."
+
+      - alert: BranchProtectionDriftDetected
+        expr: watchdog_branch_protection_violations > 0
+        for: 1m
+        labels:
+          severity: critical
+          tier: compliance
+        annotations:
+          summary: "Branch protection rule removed or degraded"
+          description: "Repository {{ $labels.repo }} has had branch protection rules modified out of policy."

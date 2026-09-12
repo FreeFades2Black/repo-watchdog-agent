@@ -1,0 +1,70 @@
+{
+  "title": "Repo Watchdog Agent Security Observability",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "title": "Incoming Webhooks Audited / min",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "rate(watchdog_webhooks_processed_total[5m]) * 60",
+          "legendFormat": "Webhooks / min"
+        }
+      ]
+    },
+    {
+      "title": "Branch Protection Compliance Rate (%)",
+      "type": "gauge",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "avg(watchdog_branch_compliance_ratio) * 100",
+          "legendFormat": "% Compliant"
+        }
+      ]
+    },
+    {
+      "title": "Local Spool Buffer Queue Depth",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "watchdog_spool_queue_depth",
+          "legendFormat": "Queued Records"
+        }
+      ]
+    },
+    {
+      "title": "HMAC Authentication Failure Rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "rate(watchdog_hmac_failures_total[5m])",
+          "legendFormat": "Forged Webhooks / s"
+        }
+      ]
+    }
+  ]
+}
