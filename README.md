@@ -30,13 +30,33 @@ flowchart TD
 
 ---
 
+## 🛡️ Upstream Ingress Gatekeeper (`ocaml-event-engine`)
+
+To eliminate redundant LLM token spend, prevent cache pollution, and establish deterministic input containment, all scraped release events and CVE telemetry pass through [`src/watchdog/gatekeeper.py`](src/watchdog/gatekeeper.py) backed by [`ocaml-event-engine`](https://github.com/FreeFades2Black/ocaml-event-engine) (`ghcr.io/freefades2black/ocaml-event-engine:latest`):
+
+```mermaid
+flowchart LR
+    Scrape["Scraped CVEs & Releases"] --> Gate["OCaml Ingress Gatekeeper<br/>(Static Musl Container / Fallback)"]
+    Gate -->|status: duplicate| Drop["Discard Immediately<br/>(0 SQLite Writes, 0 LLM Tokens)"]
+    Gate -->|status: invalid| Dead["Dead-Letter Log<br/>(dead_letter.jsonl)"]
+    Gate -->|status: processed| Intel["Intel Cache & SQLite DB<br/>(intel_cache.db)"]
+    Intel --> LLM["Downstream LLM Sentinel Agents"]
+```
+
+### Why This Ingress Gate Matters
+1. **Deterministic Cost Containment:** Upstream API feeds frequently re-emit CVE records and updated pull requests. The gatekeeper enforces mathematical deduplication before records reach SQLite or prompt synthesis, completely preventing wasted LLM API tokens.
+2. **Zero-Exception Boundary:** Python runtimes and agent loops never handle unvalidated or malformed event schemas; corrupted frames are quarantined immediately without throwing unhandled exceptions.
+3. **Specification-Enforced Invariants:** Validated per [GATEKEEPER_INTEGRATION.md](GATEKEEPER_INTEGRATION.md).
+
+---
+
 ## 1-Command Local Verification
 
 Prerequisites: `python >= 3.11`.
 
 ```bash
-# Run watchdog test suite
-python -m pytest tests/test_watchdog.py -v
+# Run watchdog & gatekeeper test suite
+python -m pytest tests/ -v
 ```
 
 ### Verified Test Suite Execution
@@ -45,11 +65,15 @@ python -m pytest tests/test_watchdog.py -v
 ============================= test session starts =============================
 platform win32 -- Python 3.11.0, pytest-9.1.1, pluggy-1.6.0
 rootdir: C:\Users\FreeF\projects\repo-watchdog-agent
-collected 7 items
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.14.2
+collected 9 items
 
-tests/test_watchdog.py .......                                            [100%]
+tests/test_gatekeeper.py ..                                              [ 22%]
+tests/test_watchdog.py .......                                           [100%]
 
-============================== 7 passed in 0.20s ==============================
+============================== 9 passed in 0.86s ==============================
 ```
 
 ---
