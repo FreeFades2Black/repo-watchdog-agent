@@ -4,6 +4,8 @@ Streams scraped release events and CVE telemetry through ocaml-event-engine
 before updating intel_cache.db or triggering LLM analysis.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -11,7 +13,7 @@ import shutil
 import sqlite3
 import subprocess
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +21,14 @@ logger = logging.getLogger(__name__)
 class GatekeeperEngine:
     """Manages continuous interactive streaming with ocaml-event-engine."""
 
-    def __init__(self, binary_cmd: Optional[List[str]] = None, initial_seen: Optional[set] = None):
+    def __init__(self, binary_cmd: list[str] | None = None, initial_seen: set | None = None):
         self._seen_ids = set(initial_seen or [])
         self.cmd = binary_cmd or self._detect_engine_cmd()
-        self._proc: Optional[subprocess.Popen] = None
+        self._proc: subprocess.Popen | None = None
         if self.cmd:
             self._start_process()
 
-    def _detect_engine_cmd(self) -> Optional[List[str]]:
-        # 1. Prefer local project binary
+    def _detect_engine_cmd(self) -> list[str] | None:
         local_bins = [
             os.path.join(os.getcwd(), "bin", "ocaml-event-engine"),
             os.path.join(os.getcwd(), "bin", "ocaml-event-engine.exe"),
@@ -41,7 +42,6 @@ class GatekeeperEngine:
         if which_bin:
             return [which_bin]
 
-        # 2. Fall back to Docker container if docker daemon is running
         docker_bin = shutil.which("docker")
         if docker_bin:
             try:
@@ -72,21 +72,20 @@ class GatekeeperEngine:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=1,  # Line-buffered
+                bufsize=1,
             )
         except (OSError, FileNotFoundError) as e:
             logger.warning(
                 f"Could not spawn gatekeeper command {self.cmd}: {e}. "
-                "Will operate in pure specification fallback mode."
+                "Operating in specification fallback mode."
             )
             self._proc = None
 
-    def evaluate(self, event_id: str, timestamp: int, payload: str) -> Tuple[str, str, Optional[str]]:
+    def evaluate(self, event_id: str, timestamp: int, payload: str) -> tuple[str, str, str | None]:
         """
         Sends an event to ocaml-event-engine and returns (status, id, error).
         Status is one of: 'processed', 'duplicate', 'invalid'.
         """
-        # If external process is unavailable, use embedded specification fallback
         if self._proc is None or self._proc.poll() is not None:
             return self._spec_fallback(event_id, timestamp, payload)
 
@@ -110,11 +109,7 @@ class GatekeeperEngine:
             logger.error(f"Gatekeeper process communication error: {e}")
             return self._spec_fallback(event_id, timestamp, payload)
 
-    def _spec_fallback(self, event_id: str, timestamp: int, payload: str) -> Tuple[str, str, Optional[str]]:
-        """Embedded specification-compliant fallback when engine binary is absent."""
-        if not hasattr(self, "_seen_ids"):
-            self._seen_ids = set()
-
+    def _spec_fallback(self, event_id: str, timestamp: int, payload: str) -> tuple[str, str, str | None]:
         trimmed_id = event_id.strip() if event_id else ""
         trimmed_payload = payload.strip() if payload else ""
 
@@ -191,11 +186,11 @@ class IntelCache:
 
 
 def route_through_gatekeeper(
-    events: List[Dict[str, Any]],
-    cache: Optional[IntelCache] = None,
-    engine: Optional[GatekeeperEngine] = None,
+    events: list[dict[str, Any]],
+    cache: IntelCache | None = None,
+    engine: GatekeeperEngine | None = None,
     dead_letter_path: str = "dead_letter.jsonl",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Filters events through ocaml-event-engine gatekeeper:
     - Drops duplicate events with zero database writes.
@@ -204,7 +199,7 @@ def route_through_gatekeeper(
     """
     db = cache or IntelCache()
     gatekeeper = engine or GatekeeperEngine(initial_seen=db.get_all_event_ids())
-    forwarded: List[Dict[str, Any]] = []
+    forwarded: list[dict[str, Any]] = []
 
     for evt in events:
         eid = str(evt.get("id", ""))

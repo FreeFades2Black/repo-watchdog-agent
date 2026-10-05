@@ -6,8 +6,9 @@ and downstream forwarding for processed events.
 
 import json
 import os
+
 import pytest
-from src.watchdog.gatekeeper import GatekeeperEngine, IntelCache, route_through_gatekeeper
+from src.watchdog.gatekeeper import IntelCache, route_through_gatekeeper
 
 
 @pytest.fixture
