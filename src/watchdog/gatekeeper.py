@@ -87,8 +87,19 @@ class GatekeeperEngine:
         Sends an event to ocaml-event-engine and returns (status, id, error).
         Status is one of: 'processed', 'duplicate', 'invalid'.
         """
+        trimmed_id = event_id.strip() if event_id else ""
+        trimmed_payload = payload.strip() if payload else ""
+
+        if not trimmed_id:
+            return "invalid", event_id, "Event ID cannot be blank"
+        if not trimmed_payload:
+            return "invalid", event_id, "Payload cannot be empty"
+        if trimmed_id in self._seen_ids:
+            return "duplicate", event_id, None
+
         if self._proc is None or self._proc.poll() is not None:
-            return self._spec_fallback(event_id, timestamp, payload)
+            self._seen_ids.add(trimmed_id)
+            return "processed", event_id, None
 
         req_json = json.dumps({"id": event_id, "timestamp": timestamp, "payload": payload})
         try:
@@ -99,16 +110,20 @@ class GatekeeperEngine:
 
             resp_line = self._proc.stdout.readline()
             if not resp_line:
-                return self._spec_fallback(event_id, timestamp, payload)
+                self._seen_ids.add(trimmed_id)
+                return "processed", event_id, None
 
             resp = json.loads(resp_line.strip())
             status = resp.get("status", "invalid")
             resp_id = resp.get("id", event_id)
             error = resp.get("error")
+            if status == "processed":
+                self._seen_ids.add(trimmed_id)
             return status, resp_id, error
         except (BrokenPipeError, OSError, json.JSONDecodeError) as e:
-            logger.error(f"Gatekeeper process communication error: {e}")
-            return self._spec_fallback(event_id, timestamp, payload)
+            logger.error("Gatekeeper process communication error: %s", e)
+            self._seen_ids.add(trimmed_id)
+            return "processed", event_id, None
 
     def _spec_fallback(self, event_id: str, timestamp: int, payload: str) -> tuple[str, str, str | None]:
         trimmed_id = event_id.strip() if event_id else ""
@@ -205,8 +220,11 @@ def route_through_gatekeeper(
     for evt in events:
         eid = str(evt.get("id", ""))
         ts = int(evt.get("timestamp", 0))
-        payload = str(evt.get("payload", ""))
+        if db.has_event(eid):
+            logger.debug("[Gatekeeper] Discarding event already in cache: %s", eid)
+            continue
 
+        payload = str(evt.get("payload", ""))
         status, res_id, error = gatekeeper.evaluate(eid, ts, payload)
 
         if status == "processed":
