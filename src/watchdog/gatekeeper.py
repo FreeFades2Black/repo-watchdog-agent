@@ -50,6 +50,7 @@ class GatekeeperEngine:
                     capture_output=True,
                     timeout=2,
                     text=True,
+                    check=False,
                 )
                 if check.returncode == 0:
                     return [
@@ -59,8 +60,8 @@ class GatekeeperEngine:
                         "--rm",
                         "ghcr.io/freefades2black/ocaml-event-engine:latest",
                     ]
-            except Exception:
-                pass
+            except (subprocess.SubprocessError, OSError) as e:
+                logger.debug("Docker not responsive: %s", e)
 
         return None
 
@@ -130,8 +131,8 @@ class GatekeeperEngine:
                     self._proc.stdin.close()
                 self._proc.terminate()
                 self._proc.wait(timeout=2)
-            except Exception:
-                pass
+            except (subprocess.SubprocessError, OSError) as e:
+                logger.debug("Process termination error: %s", e)
 
 
 class IntelCache:

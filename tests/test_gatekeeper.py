@@ -8,6 +8,7 @@ import json
 import os
 
 import pytest
+
 from src.watchdog.gatekeeper import IntelCache, route_through_gatekeeper
 
 
