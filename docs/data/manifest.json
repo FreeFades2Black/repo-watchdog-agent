@@ -1,5 +1,13 @@
 [
   {
+    "timestamp": "2026-11-23T16:45:13.994917+00:00",
+    "date": "2026-11-23",
+    "status": "Success",
+    "has_breaking_changes": false,
+    "breaking_count": 0,
+    "summary_snippet": "**Generated:** `2026-11-23 16:45:13 UTC`  \n**Monitored Repositories:** `3 targets` (microsoft/agent-framework, microsoft/semantic-kernel, microsoft/autogen)  \n*..."
+  },
+  {
     "timestamp": "2026-11-22T13:44:23.796101+00:00",
     "date": "2026-11-22",
     "status": "Success",
@@ -230,13 +238,5 @@
     "has_breaking_changes": false,
     "breaking_count": 0,
     "summary_snippet": "**Generated:** `2026-10-25 10:20:10 UTC`  \n**Monitored Repositories:** `3 targets` (microsoft/agent-framework, microsoft/semantic-kernel, microsoft/autogen)  \n*..."
-  },
-  {
-    "timestamp": "2026-10-24T09:57:55.541570+00:00",
-    "date": "2026-10-24",
-    "status": "Success",
-    "has_breaking_changes": false,
-    "breaking_count": 0,
-    "summary_snippet": "**Generated:** `2026-10-24 09:57:55 UTC`  \n**Monitored Repositories:** `3 targets` (microsoft/agent-framework, microsoft/semantic-kernel, microsoft/autogen)  \n*..."
   }
 ]
